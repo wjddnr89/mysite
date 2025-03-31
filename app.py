@@ -1,6 +1,7 @@
 # 프레임워크 로드
 from flask import Flask, request, render_template, url_for
 import pandas as pd
+import invest
 
 
 # Flask Class 생성
@@ -9,8 +10,8 @@ app = Flask(__name__)
 # 유저가 어떤 종목, 투자기간, 투자 전략 방식을 입력할 수 있는
 # 페이지를 보여주는 api 생성
 @app.route('/invest')
-def invest():
-    render_template('invest.html')
+def first():
+    return render_template('invest.html')
 
 # 대쉬보드 페이지를 보여주는 api 생성
 # 대쉬보드에서 필요한 데이터는
@@ -32,7 +33,47 @@ def dashboard():
     input_time = f"{input_year}-{input_month}-{input_day}"
     # 투자 방식
     input_type = request.args['type']
-    return render_template('dashboard.html')
+    
+    # 데이터를 로드
+    df = invest.load_data(input_code, input_time)
+    # Class 생성
+    invest_class = invest.Invest(df, _col = 'Close', _start = input_time)
+    # input_type을 기준으로 Class의 함술르 호출
+    if input_type == 'bnh':
+        result = invest_class.buyandhold()
+    elif input_type == 'boll':
+        result = invest_class.bollinger()
+    elif input_type == 'mmt':
+        result = invest_class.momentum()
+    # 특정 컬럼만 필터
+    result = result[['Close','trade','rtn','acc_rtn']]
+    # 특정 컬럼을 생성
+    result['ym'] = result.index.strftime('%Y-%m')
+    # 테이블을 정제
+    result = pd.concat(
+        [
+            result.groupby('ym')[['Close','trade','acc_rtn']].max(),
+            result.groupby('ym')[['rtn']].mean()
+        ],
+        axis=1
+    )
+    result.reset_index(inplace=True)
+    # 컬럼의 이름 변경 
+    result.columns = ['시간','종가','보유내역','누적수익률','일별수익률']
+    # 컬럼들의 이름을 리스트로 생성
+    cols_list = list(result.columns)
+    # 테이블에 데이터
+    dict_data = result.to_dict(orient='records')
+    # x축 y축 데이터
+    x_data = list(result['시간'])
+    y_data = list(result['일별수익률'])
+    y2_data = list(result['누적수익률'])
+    return render_template('dashboard.html',
+                           table_cols = cols_list,
+                           table_data = dict_data,
+                           x_data = x_data,
+                           y_data = y_data,
+                           y1_data = y2_data)
 
 
 app.run(debug = True)

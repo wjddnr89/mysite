@@ -147,4 +147,4 @@ def dashboard():
                            y1_data = y2_data)
 
 
-app.run(debug = True)
+# app.run(debug = True)
